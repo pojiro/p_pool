@@ -4,7 +4,6 @@ defmodule PPool.Nagger do
   require Logger
 
   def start_link({task, delay, max, send_to}) do
-    Logger.debug("start_link nagger")
     GenServer.start_link(__MODULE__, {task, delay, max, send_to})
   end
 

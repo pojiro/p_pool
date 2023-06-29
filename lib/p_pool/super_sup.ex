@@ -1,8 +1,8 @@
 defmodule PPool.SuperSup do
   use Supervisor
 
-  def start_link() do
-    Supervisor.start_link(__MODULE__, _init_arg = [], name: __MODULE__)
+  def start_link(init_arg) do
+    Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
   end
 
   def stop() do
@@ -12,10 +12,10 @@ defmodule PPool.SuperSup do
     end
   end
 
-  def start_pool(name, limit, mfa) do
+  def start_pool(name, limit) do
     child_spec = %{
       id: name,
-      start: {PPool.Sup, :start_link, [name, limit, mfa]},
+      start: {PPool.Sup, :start_link, [name, limit]},
       restart: :permanent,
       shutdown: 10500,
       type: :supervisor,

@@ -5,13 +5,12 @@ defmodule PPool.Serv do
     defstruct limit: 0, sup: nil, refs: nil, queue: :queue.new()
   end
 
-  def start(name, limit, sup, mfa) when is_atom(name) and is_integer(limit) do
-    GenServer.start(__MODULE__, {limit, mfa, sup}, name: name)
+  def start(name, limit, sup) when is_atom(name) and is_integer(limit) do
+    GenServer.start(__MODULE__, {limit, sup}, name: name)
   end
 
-  def start_link(name, limit, sup, mfa) when is_atom(name) and is_integer(limit) do
-    IO.inspect(name)
-    GenServer.start_link(__MODULE__, {limit, mfa, sup}, name: name)
+  def start_link(name, limit, sup) when is_atom(name) and is_integer(limit) do
+    GenServer.start_link(__MODULE__, {limit, sup}, name: name)
   end
 
   def run(name, args) do
@@ -33,16 +32,20 @@ defmodule PPool.Serv do
   ## callbacks
 
   @impl true
-  def init({limit, mfa, sup}) do
-    send(self(), {:start_worker_supervisor, sup, mfa})
+  def init({limit, sup}) do
+    send(self(), {:start_worker_supervisor, sup})
     {:ok, %State{limit: limit, refs: :gb_sets.empty()}}
   end
 
   @impl true
-  def handle_info({:start_worker_supervisor, sup, mfa}, state) do
+  def handle_info({:start_worker_supervisor, sup}, state) do
     # 引数で受け取った sup は PPool.Sup の pid
-    {:ok, pid} = Supervisor.start_child(sup, {PPool.Worker.Sup, mfa})
+    {:ok, pid} =
+      PPool.Worker.Sup.child_spec()
+      |> then(&Supervisor.start_child(sup, &1))
+
     Process.link(pid)
+
     {:noreply, %State{state | sup: pid}}
   end
 
@@ -57,10 +60,10 @@ defmodule PPool.Serv do
   end
 
   @impl true
-  def handle_call({:run, args}, _from, %State{limit: n, sup: sup, refs: r} = state) when n > 0 do
+  def handle_call({:run, {_m, _f, _a} = args}, _from, %State{limit: n, sup: sup, refs: r} = state)
+      when n > 0 do
     # sup は PPool.Worker.Sup の pid
-    IO.inspect(args)
-    {:ok, pid} = DynamicSupervisor.start_child(sup, PPool.Worker.Sup.worker_child_spec(args))
+    {:ok, pid} = PPool.Worker.Sup.start_worker(sup, args)
     ref = Process.monitor(pid)
     {:reply, {:ok, pid}, %State{state | limit: n - 1, refs: :gb_sets.add(ref, r)}}
   end
@@ -72,7 +75,7 @@ defmodule PPool.Serv do
 
   @impl true
   def handle_call({:sync, args}, _from, %State{limit: n, sup: sup, refs: r} = state) when n > 0 do
-    {:ok, pid} = Supervisor.start_child(sup, args)
+    {:ok, pid} = PPool.Worker.Sup.start_worker(sup, args)
     ref = Process.monitor(pid)
     {:reply, {:ok, pid}, %State{state | limit: n - 1, refs: :gb_sets.add(ref, r)}}
   end
@@ -89,9 +92,9 @@ defmodule PPool.Serv do
 
   @impl true
   def handle_cast({:async, args}, %State{limit: n, sup: sup, refs: r} = state) when n > 0 do
-    {:ok, pid} = Supervisor.start_child(sup, args)
+    {:ok, pid} = PPool.Worker.Sup.start_worker(sup, args)
     ref = Process.monitor(pid)
-    {:reply, {:ok, pid}, %State{state | limit: n - 1, refs: :gb_sets.add(ref, r)}}
+    {:noreply, %State{state | limit: n - 1, refs: :gb_sets.add(ref, r)}}
   end
 
   @impl true
@@ -102,14 +105,14 @@ defmodule PPool.Serv do
   defp handle_down_worker(ref, %State{limit: l, sup: sup, refs: refs} = s) do
     case :queue.out(s.queue) do
       {{:value, {from, args}}, q} ->
-        {:ok, pid} = Supervisor.start_child(sup, args)
+        {:ok, pid} = PPool.Worker.Sup.start_worker(sup, args)
         new_ref = Process.monitor(pid)
         new_refs = :gb_sets.insert(new_ref, :gb_sets.delete(ref, refs))
         GenServer.reply(from, {:ok, pid})
         {:noreply, %State{s | refs: new_refs, queue: q}}
 
       {{:value, args}, q} ->
-        {:ok, pid} = Supervisor.start_child(sup, args)
+        {:ok, pid} = PPool.Worker.Sup.start_worker(sup, args)
         new_ref = Process.monitor(pid)
         new_refs = :gb_sets.insert(new_ref, :gb_sets.delete(ref, refs))
         {:noreply, %State{s | refs: new_refs, queue: q}}

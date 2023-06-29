@@ -1,16 +1,16 @@
 defmodule PPool.Sup do
   use Supervisor
 
-  def start_link(name, limit, mfa) do
-    Supervisor.start_link(__MODULE__, {name, limit, mfa})
+  def start_link(name, limit) do
+    Supervisor.start_link(__MODULE__, {name, limit})
   end
 
   @impl true
-  def init({name, limit, mfa}) do
+  def init({name, limit}) do
     children = [
       %{
         id: PPool.Serv,
-        start: {PPool.Serv, :start_link, [name, limit, self(), mfa]},
+        start: {PPool.Serv, :start_link, [name, limit, self()]},
         restart: :permanent,
         shutdown: 5000,
         type: :worker,

@@ -1,16 +1,14 @@
 defmodule PPool.Worker.Sup do
-  # use Supervisor
   use DynamicSupervisor
 
   def start_link(init_arg) do
-    # Supervisor.start_link(__MODULE__, init_arg)
     DynamicSupervisor.start_link(__MODULE__, init_arg)
   end
 
-  def child_spec(mfa) do
+  def child_spec() do
     %{
       id: __MODULE__,
-      start: {__MODULE__, :start_link, [mfa]},
+      start: {__MODULE__, :start_link, [nil]},
       restart: :temporary,
       shutdown: 10000,
       type: :supervisor,
@@ -18,10 +16,14 @@ defmodule PPool.Worker.Sup do
     }
   end
 
-  def worker_child_spec({m, f, a}) do
+  def start_worker(sup, args) do
+    DynamicSupervisor.start_child(sup, worker_child_spec(args))
+  end
+
+  defp worker_child_spec({m, f, a}) do
     %{
       id: m,
-      start: {m, f, a},
+      start: {m, f, [a]},
       restart: :temporary,
       shutdown: 5000,
       type: :worker,
@@ -32,22 +34,7 @@ defmodule PPool.Worker.Sup do
   ## callbacks
 
   @impl true
-  def init({m, f, a} = _init_arg) do
-    _children = [
-      %{
-        id: m,
-        start: {m, f, a},
-        restart: :temporary,
-        shutdown: 5000,
-        type: :worker,
-        modules: [m]
-      }
-    ]
-
-    # Supervisor.init(children, strategy: :simple_one_for_one)
-    DynamicSupervisor.init(
-      strategy: :one_for_one
-      # extra_arguments: [init_arg]
-    )
+  def init(_init_arg) do
+    DynamicSupervisor.init(strategy: :one_for_one)
   end
 end
