@@ -3,8 +3,16 @@ defmodule PPool do
   API module for the pool
   """
 
-  def start_link(), do: PPool.SuperSup.start_link([])
-  defdelegate stop(), to: PPool.SuperSup
+  use Application
+
+  @impl true
+  def start(_type, _args) do
+    PPool.SuperSup.start_link([])
+  end
+
+  @impl true
+  def stop(_state), do: :ok
+
   defdelegate start_pool(name, limit), to: PPool.SuperSup
   defdelegate stop_pool(name), to: PPool.SuperSup
   defdelegate run(name, args), to: PPool.Serv

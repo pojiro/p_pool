@@ -5,7 +5,10 @@ defmodule PPoolTest do
     pool_name = Nagger
     pool_size = 2
 
-    start_supervised!(PPool.SuperSup)
+    :p_pool
+    |> tap(&Application.stop(&1))
+    |> tap(&Application.start(&1))
+
     PPool.start_pool(pool_name, pool_size)
 
     %{pool_name: pool_name, pool_size: pool_size}

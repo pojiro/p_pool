@@ -5,13 +5,6 @@ defmodule PPool.SuperSup do
     Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
   end
 
-  def stop() do
-    case Process.whereis(__MODULE__) do
-      p when is_pid(p) -> Process.exit(p, :kill)
-      _ -> :ok
-    end
-  end
-
   def start_pool(name, limit) do
     child_spec = %{
       id: name,
